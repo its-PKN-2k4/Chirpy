@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync/atomic"
 )
@@ -18,6 +20,45 @@ func (cfg *apiConfig) middlewareMetricsIncrement(next http.Handler) http.Handler
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// Function to handle POST request and return stats as json
+func JsonHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"body"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	type returnVals struct {
+		Valid bool `json:"valid"`
+	}
+
+	resContent := returnVals{}
+
+	w.Header().Set("Content-Type", "application/json")
+	if len(params.Body) > 140 {
+		resContent.Valid = false
+		w.WriteHeader(http.StatusBadRequest)
+	} else {
+		resContent.Valid = true
+		w.WriteHeader(http.StatusOK)
+	}
+	data, err := json.Marshal(resContent)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader((http.StatusInternalServerError))
+		return
+	}
+	w.Write(data)
+
 }
 
 func main() {
@@ -63,6 +104,9 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		apiCFG.fileserverHits.Swap(0)
 	})
+
+	// Handler for /api/validate_chirp endpoint
+	mux.HandleFunc("POST /api/validate_chirp", JsonHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",
