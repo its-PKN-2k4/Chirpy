@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -38,18 +39,27 @@ func JsonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type returnVals struct {
-		Valid bool `json:"valid"`
+		Cleaned_body string `json:"cleaned_body"`
 	}
 
 	resContent := returnVals{}
 
 	w.Header().Set("Content-Type", "application/json")
-	if len(params.Body) > 140 {
-		resContent.Valid = false
-		w.WriteHeader(http.StatusBadRequest)
-	} else {
-		resContent.Valid = true
+	if len(params.Body) <= 140 {
+		to_filter := []string{"kerfuffle", "sharbert", "fornax"}
+		string_splits := strings.Split(params.Body, " ")
+		for i := 0; i < len(string_splits); i++ {
+			for j := 0; j < len(to_filter); j++ {
+				if strings.ToLower(string_splits[i]) == to_filter[j] {
+					string_splits[i] = "****"
+				}
+			}
+		}
+		resContent.Cleaned_body = strings.Join(string_splits, " ")
 		w.WriteHeader(http.StatusOK)
+	} else {
+		resContent.Cleaned_body = ""
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	data, err := json.Marshal(resContent)
 	if err != nil {
