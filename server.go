@@ -1,17 +1,25 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+
+	"example.com/m/internal/database"
+	_ "github.com/lib/pq"
 )
 
 // Struct to store stateful (counting requests to an endpoint)
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	db             *database.Queries
 }
 
 // Middleware to alter/record state and process requests
@@ -72,8 +80,23 @@ func JsonHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	err1 := godotenv.Load()
+	if err1 != nil {
+		log.Printf("Error loading godotenv lib: %s", err1)
+	}
+	dbURL := os.Getenv("DB_URL")
+	db, err2 := sql.Open("postgres", dbURL)
+	if err2 != nil {
+		log.Printf("Error opening connection to SQL database: %s", err2)
+	}
+	dbQueries := database.New(db)
+
 	mux := http.NewServeMux()
-	apiCFG := apiConfig{}                                                                                            // Instance of stateful struct
+	apiCFG := apiConfig{
+		fileserverHits: atomic.Int32{},
+		db:             dbQueries,
+	}
+	// Instance of stateful struct
 	mux.Handle("/app/", apiCFG.middlewareMetricsIncrement(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // Handler for /app endpoint
 
 	// Handler for /api/healthz endpoint
