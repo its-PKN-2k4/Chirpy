@@ -12,7 +12,10 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"time"
+
 	"example.com/m/internal/database"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
@@ -20,6 +23,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
 // Middleware to alter/record state and process requests
@@ -79,6 +83,55 @@ func JsonHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
+	type User struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	type RegisterEmail struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	regEmail := RegisterEmail{}
+	err := decoder.Decode(&regEmail)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	user, err := cfg.db.CreateUser(r.Context(), regEmail.Email)
+	newUser := User{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	w.WriteHeader(http.StatusCreated)
+	data, err := json.Marshal(newUser)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader((http.StatusInternalServerError))
+		return
+	}
+	w.Write(data)
+}
+
+func (cfg *apiConfig) handleResetUsers(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+	}
+
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+
+	err := cfg.db.EmptyUsers(r.Context())
+	if err != nil {
+		log.Printf("Something is wrong... Please wait for a fix")
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func main() {
 	err1 := godotenv.Load()
 	if err1 != nil {
@@ -95,6 +148,7 @@ func main() {
 	apiCFG := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		platform:       os.Getenv("PLATFORM"),
 	}
 	// Instance of stateful struct
 	mux.Handle("/app/", apiCFG.middlewareMetricsIncrement(http.StripPrefix("/app", http.FileServer(http.Dir("."))))) // Handler for /app endpoint
@@ -129,17 +183,13 @@ func main() {
 	})
 
 	// Handler for /admin/reset endpoint
-	mux.HandleFunc("POST /admin/reset", func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != "POST" {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-
-		w.WriteHeader(http.StatusOK)
-		apiCFG.fileserverHits.Swap(0)
-	})
+	mux.HandleFunc("POST /admin/reset", apiCFG.handleResetUsers)
 
 	// Handler for /api/validate_chirp endpoint
 	mux.HandleFunc("POST /api/validate_chirp", JsonHandler)
+
+	// Handler for /api/users endpoint
+	mux.HandleFunc("POST /api/users", apiCFG.handlerUsersCreate)
 
 	srv := &http.Server{
 		Addr:    ":8080",
