@@ -2,11 +2,11 @@ package main
 
 import (
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
 	chirpsArray, err := cfg.db.GetChirps(r.Context())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get all chirps", err)
@@ -26,4 +26,24 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, returnChirps)
+}
+
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	idToFind, err1 := uuid.Parse(r.PathValue("param1"))
+	if err1 != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode url parameters to string for internal use", err1)
+		return
+	}
+	chirpByID, err2 := cfg.db.GetChirpByID(r.Context(), idToFind)
+	if err2 != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't find chirp that has the given ID", err2)
+		return
+	}
+	respondWithJSON(w, http.StatusOK, Chirp{
+		ID:        chirpByID.ID,
+		CreatedAt: chirpByID.CreatedAt,
+		UpdatedAt: chirpByID.UpdatedAt,
+		Body:      chirpByID.Body,
+		UserID:    chirpByID.UserID,
+	})
 }
