@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	key            string
 }
 
 func main() {
@@ -37,11 +38,16 @@ func main() {
 		log.Fatalf("Error opening database: %s", err)
 	}
 	dbQueries := database.New(dbConn)
+	ss := os.Getenv("SECRET")
+	if ss == "" {
+		log.Fatal("SECRET must be set")
+	}
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
+		key:            ss,
 	}
 
 	mux := http.NewServeMux()
