@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"example.com/m/internal/auth"
 	"example.com/m/internal/database"
 	"github.com/google/uuid"
 )
@@ -22,16 +23,27 @@ type Chirp struct {
 
 func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
-	log.Printf("Decoded params: body=%q user_id=%s", params.Body, params.UserID)
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	bearer_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error obtaining sign-in token", err)
+		return
+	}
+
+	id_from_token, err := auth.ValidateJWT(bearer_token, cfg.key)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error validating sign-in token", err)
 		return
 	}
 
@@ -44,9 +56,9 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 
 	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleaned,
-		UserID: params.UserID,
+		UserID: id_from_token,
 	})
-	log.Printf("Decoded chirp: body=%q user_id=%s", chirp.Body, chirp.UserID)
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp", err)
 		return
@@ -57,7 +69,7 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body:      chirp.Body,
-		UserID:    chirp.UserID,
+		UserID:    id_from_token,
 	})
 }
 
