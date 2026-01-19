@@ -128,3 +128,54 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 		})
 	}
 }
+
+func (cfg *apiConfig) handlerUserLoginUpdate(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	type response struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error obtaining sign-in token", err)
+		return
+	}
+
+	idFromToken, err := auth.ValidateJWT(bearerToken, cfg.key)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error validating sign-in token", err)
+		return
+	}
+
+	newHashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't encrypt password", err)
+	}
+
+	userNewCreds, err := cfg.db.UpdateUserPwdEmailByToken(r.Context(), database.UpdateUserPwdEmailByTokenParams{
+		Email:          params.Email,
+		HashedPassword: newHashedPassword,
+		ID:             idFromToken,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Authentication token invalid or missing", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{
+		Email: userNewCreds,
+	})
+}
