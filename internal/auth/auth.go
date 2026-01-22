@@ -88,3 +88,22 @@ func MakeRefreshToken() (string, error) {
 	rand.Read(key)
 	return hex.EncodeToString(key), nil
 }
+
+func GetAPIKey(headers http.Header) (string, error) {
+	auth := headers.Get("Authorization")
+	if len(auth) == 0 {
+		return "", fmt.Errorf("Authorization field not found in header")
+	}
+
+	stripped_api_key := strings.TrimSpace(auth)
+	key_chunks := strings.Fields(stripped_api_key)
+	if len(key_chunks) != 2 {
+		return "", fmt.Errorf("Malformed authorization header")
+	}
+
+	if key_chunks[0] != "ApiKey" {
+		return "", fmt.Errorf("Malformed authorization header")
+	}
+
+	return key_chunks[1], nil
+}
