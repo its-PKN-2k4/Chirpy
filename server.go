@@ -17,6 +17,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	key            string
+	api            string
 }
 
 func main() {
@@ -42,12 +43,17 @@ func main() {
 	if ss == "" {
 		log.Fatal("SECRET must be set")
 	}
+	polka := os.Getenv("POLKA_KEY")
+	if polka == "" {
+		log.Fatal("POLKA_KEY must be set")
+	}
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
 		key:            ss,
+		api:            polka,
 	}
 
 	mux := http.NewServeMux()

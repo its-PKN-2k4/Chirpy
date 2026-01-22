@@ -5,6 +5,7 @@ import (
 
 	"net/http"
 
+	"example.com/m/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -24,6 +25,17 @@ func (cfg *apiConfig) handlerUpdateMembership(w http.ResponseWriter, r *http.Req
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	api, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't get API key to authenticate", err)
+		return
+	}
+
+	if cfg.api != api {
+		respondWithError(w, http.StatusUnauthorized, "Invalid API key provided", err)
 		return
 	}
 
