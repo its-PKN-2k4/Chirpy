@@ -11,10 +11,11 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
@@ -49,10 +50,11 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 
 	respondWithJSON(w, http.StatusCreated, response{
 		User: User{
-			ID:        user.ID,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-			Email:     user.Email,
+			ID:          user.ID,
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			Email:       user.Email,
+			IsChirpyRed: user.IsChirpyRed.Bool,
 		},
 	})
 }
@@ -61,7 +63,6 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 	type parameters struct {
 		Password string `json:"password"`
 		Email    string `json:"email"`
-		//ExpiresInSeconds *int   `json:"expires_in_seconds"`
 	}
 	type response struct {
 		ID           uuid.UUID `json:"id"`
@@ -70,6 +71,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 		Email        string    `json:"email"`
 		Token        string    `json:"token"`
 		RefreshToken string    `json:"refresh_token"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
 	}
 
 	const maxExpirySeconds = 60 * 60
@@ -125,6 +127,7 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, r *http.Request) 
 			Email:        grab_user.Email,
 			Token:        created_token,
 			RefreshToken: refresh_tkn.Token,
+			IsChirpyRed:  grab_user.IsChirpyRed.Bool,
 		})
 	}
 }
